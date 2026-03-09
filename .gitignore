@@ -3,3 +3,4 @@
 /results
 /preprocess
 .DS_Store
+/__pycache__
