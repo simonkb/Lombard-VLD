@@ -126,7 +126,7 @@ class ECAPAModel(nn.Module):
 			   						n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
 									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
 				feats.append(sub_ref_spec_2)
-			feats = numpy.stack(feats, axis = 0).astype(numpy.float)
+			feats = numpy.stack(feats, axis = 0).astype(float)
 			ref_data_2 = torch.FloatTensor(feats).to(self.device)
 
 			if len(test_wav) <= 2 * test_sr:
@@ -143,7 +143,7 @@ class ECAPAModel(nn.Module):
 			   						n_fft=1024, num_mels=80, sampling_rate=test_sr, 
 									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
 				feats.append(sub_test_spec_2)
-			feats = numpy.stack(feats, axis = 0).astype(numpy.float)
+			feats = numpy.stack(feats, axis = 0).astype(float)
 			test_data_2 = torch.FloatTensor(feats).to(self.device)
 
 			# Speaker embeddings
@@ -216,7 +216,7 @@ class ECAPAModel(nn.Module):
 			   						n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
 									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
 				feats.append(sub_ref_spec_2)
-			feats = numpy.stack(feats, axis = 0).astype(numpy.float)
+			feats = numpy.stack(feats, axis = 0).astype(float)
 			ref_data_2 = torch.FloatTensor(feats).to(self.device)
 
 			if len(test_wav) <= 2 * test_sr:
@@ -233,7 +233,7 @@ class ECAPAModel(nn.Module):
 			   						n_fft=1024, num_mels=80, sampling_rate=test_sr, 
 									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
 				feats.append(sub_test_spec_2)
-			feats = numpy.stack(feats, axis = 0).astype(numpy.float)
+			feats = numpy.stack(feats, axis = 0).astype(float)
 			test_data_2 = torch.FloatTensor(feats).to(self.device)
 
 			# Speaker embeddings
@@ -279,7 +279,7 @@ class ECAPAModel(nn.Module):
 			startframe = numpy.linspace(0, audio.shape[0]-max_audio, num=5)
 			for asf in startframe:
 				feats.append(audio[int(asf):int(asf)+max_audio])
-			feats = numpy.stack(feats, axis = 0).astype(numpy.float)
+			feats = numpy.stack(feats, axis = 0).astype(float)
 			data_2 = torch.FloatTensor(feats).to(self.device)
 			# Speaker embeddings
 			with torch.no_grad():
@@ -313,7 +313,14 @@ class ECAPAModel(nn.Module):
 
 	def load_parameters(self, path):
 		self_state = self.state_dict()
-		loaded_state = torch.load(path)
+		map_location = self.device
+		if isinstance(map_location, str):
+			# Gracefully fall back if MPS was requested but isn't available.
+			if map_location.startswith('mps') and (not torch.backends.mps.is_available()):
+				map_location = torch.device('cpu')
+			else:
+				map_location = torch.device(map_location)
+		loaded_state = torch.load(path, map_location=map_location)
 		for name, param in loaded_state.items():
 			origname = name
 			if name not in self_state:
