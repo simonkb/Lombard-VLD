@@ -4,3 +4,6 @@
 /preprocess
 .DS_Store
 /__pycache__
+/DB-MLC
+/enhanced_lombard_grid_part1
+/enhanced_lombard_grid_part2
