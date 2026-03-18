@@ -4,6 +4,7 @@ This part is used to train the speaker model and evaluate the performances
 
 import torch, sys, os, tqdm, numpy, soundfile, time, pickle
 import numpy as np
+import librosa
 import torch.nn as nn
 from tools import *
 from loss import AAMsoftmax
@@ -86,7 +87,12 @@ class ECAPAModel(nn.Module):
 
 			ref_wav, ref_sr = soundfile.read(ref_file)
 			test_wav, test_sr = soundfile.read(test_file)
-			assert ref_sr == 16000 and test_sr == 16000, 'should keep sr=16000'
+			if ref_sr != 16000:
+				ref_wav = librosa.resample(ref_wav.astype(np.float32), orig_sr=ref_sr, target_sr=16000)
+				ref_sr = 16000
+			if test_sr != 16000:
+				test_wav = librosa.resample(test_wav.astype(np.float32), orig_sr=test_sr, target_sr=16000)
+				test_sr = 16000
 
 			# if len(ref_wav) < 2 * ref_sr:
 			# 	len_left = int((2 * ref_sr - len(ref_wav)) // 2)
@@ -190,7 +196,12 @@ class ECAPAModel(nn.Module):
 
 			ref_wav, ref_sr = soundfile.read(ref_file)
 			test_wav, test_sr = soundfile.read(test_file)
-			assert ref_sr == 16000 and test_sr == 16000, 'should keep sr=16000'
+			if ref_sr != 16000:
+				ref_wav = librosa.resample(ref_wav.astype(np.float32), orig_sr=ref_sr, target_sr=16000)
+				ref_sr = 16000
+			if test_sr != 16000:
+				test_wav = librosa.resample(test_wav.astype(np.float32), orig_sr=test_sr, target_sr=16000)
+				test_sr = 16000
 
 			ref_spec_1 = mel_spectrogram(torch.FloatTensor(ref_wav).unsqueeze(0), 
 			   						n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
