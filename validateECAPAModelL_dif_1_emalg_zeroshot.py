@@ -87,12 +87,13 @@ if __name__ == '__main__':
 	print("EER %2.2f%%, minDCF %.4f%%" % (eer, mindcf))
 
 	if args.confusion_matrix:
-		# eval_network_confusion_matrix expects a 3-column file list, while EMALG
-		# trials are 5-column. Skip to avoid crashing.
+		# EMALG uses a 5-column trial list, so use the dedicated 5-column evaluator.
 		with open(val_path, 'r') as f:
 			first = f.readline().rstrip('\n')
 		if first.count('\t') >= 4:
-			print('Skipping confusion-matrix evaluation: val_path appears to be a 5-column trial list.')
+			acc, tpr, far, trr, frr = s.eval_network_confusion_matrix_5col(val_path=val_path)
+			print('Accuracy %.4f%%' % (acc * 100))
+			print((tpr, far, trr, frr))
 		else:
 			accuracy1 = s.eval_network_confusion_matrix(val_path=val_path)
 			print(accuracy1)

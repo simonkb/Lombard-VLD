@@ -6,6 +6,7 @@ import torch, sys, os, tqdm, numpy, soundfile, time, pickle
 import numpy as np
 import librosa
 import torch.nn as nn
+from sklearn import metrics
 from tools import *
 from loss import AAMsoftmax
 # from modelL import ECAPA_TDNN
@@ -264,6 +265,106 @@ class ECAPAModel(nn.Module):
 		_, tpr, far, trr, frr = self.speaker_loss.forward_confusion_matrix(embeddings, labels)
 
 		return tpr, far, trr, frr
+
+	def eval_network_confusion_matrix_5col(self, val_path):
+		self.eval()
+		files = []
+		embeddings = {}
+		with open(val_path, 'r') as fv:
+			lines = fv.readlines()
+		for line in lines:
+			files.append(line.split()[1] + '\t' + line.split()[2])
+			files.append(line.split()[3] + '\t' + line.split()[4])
+		setfiles = list(set(files))
+		setfiles.sort()
+
+		for idx, file in tqdm.tqdm(enumerate(setfiles), total=len(setfiles)):
+			ref_file, test_file = file.split('\t')
+			ref_wav, ref_sr = soundfile.read(ref_file)
+			test_wav, test_sr = soundfile.read(test_file)
+			if ref_sr != 16000:
+				ref_wav = librosa.resample(ref_wav.astype(np.float32), orig_sr=ref_sr, target_sr=16000)
+				ref_sr = 16000
+			if test_sr != 16000:
+				test_wav = librosa.resample(test_wav.astype(np.float32), orig_sr=test_sr, target_sr=16000)
+				test_sr = 16000
+
+			ref_spec_1 = mel_spectrogram(torch.FloatTensor(ref_wav).unsqueeze(0), 
+										n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
+										hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).to(self.device)
+			test_spec_1 = mel_spectrogram(torch.FloatTensor(test_wav).unsqueeze(0), 
+										n_fft=1024, num_mels=80, sampling_rate=test_sr, 
+										hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).to(self.device)
+
+			if len(ref_wav) <= 2 * ref_sr:
+				len_left = int((2 * ref_sr - len(ref_wav)) // 2)
+				len_right = 2 * ref_sr - len(ref_wav) - len_left
+				ref_wav_2 = np.pad(ref_wav, ((len_left, len_right)), 'edge')
+			else:
+				ref_wav_2 = ref_wav
+			feats = []
+			startframe = numpy.linspace(0, ref_wav_2.shape[0] - 2 * ref_sr, num=5)
+			for asf in startframe:
+				sub_ref_wav = ref_wav_2[int(asf): int(asf) + 2 * ref_sr]
+				sub_ref_spec_2 = mel_spectrogram(torch.FloatTensor(sub_ref_wav).unsqueeze(0), 
+											n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
+											hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
+				feats.append(sub_ref_spec_2)
+			feats = numpy.stack(feats, axis=0).astype(float)
+			ref_data_2 = torch.FloatTensor(feats).to(self.device)
+
+			if len(test_wav) <= 2 * test_sr:
+				len_left = int((2 * test_sr - len(test_wav)) // 2)
+				len_right = 2 * test_sr - len(test_wav) - len_left
+				test_wav_2 = np.pad(test_wav, ((len_left, len_right)), 'edge')
+			else:
+				test_wav_2 = test_wav
+			feats = []
+			startframe = numpy.linspace(0, test_wav_2.shape[0] - 2 * test_sr, num=5)
+			for asf in startframe:
+				sub_test_wav = test_wav_2[int(asf): int(asf) + 2 * test_sr]
+				sub_test_spec_2 = mel_spectrogram(torch.FloatTensor(sub_test_wav).unsqueeze(0), 
+											n_fft=1024, num_mels=80, sampling_rate=test_sr, 
+											hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
+				feats.append(sub_test_spec_2)
+			feats = numpy.stack(feats, axis=0).astype(float)
+			test_data_2 = torch.FloatTensor(feats).to(self.device)
+
+			with torch.no_grad():
+				embedding_1 = self.speaker_encoder.forward(ref_spec_1.transpose(1, 2), test_spec_1.transpose(1, 2))
+				embedding_1 = embedding_1.squeeze(1)
+				embedding_1 = F.normalize(embedding_1, p=2, dim=1)
+				embedding_2 = self.speaker_encoder.forward(ref_data_2.transpose(1, 2), test_data_2.transpose(1, 2))
+				embedding_2 = embedding_2.squeeze(1)
+				embedding_2 = F.normalize(embedding_2, p=2, dim=1)
+			embeddings[file] = [embedding_1, embedding_2]
+
+		scores, labels = [], []
+		for line in lines:
+			embedding_11, embedding_12 = embeddings[line.split()[1] + '\t' + line.split()[2]]
+			embedding_21, embedding_22 = embeddings[line.split()[3] + '\t' + line.split()[4]]
+			score_1 = torch.mean(torch.matmul(embedding_11, embedding_21.T))
+			score_2 = torch.mean(torch.matmul(embedding_12, embedding_22.T))
+			score = (score_1 + score_2) / 2
+			score = score.detach().cpu().numpy()
+			scores.append(float(score))
+			labels.append(int(line.split()[0]))
+
+		fpr, tpr, thresholds = metrics.roc_curve(labels, scores, pos_label=1)
+		fnr = 1 - tpr
+		idxE = numpy.nanargmin(numpy.absolute((fnr - fpr)))
+		thr = thresholds[idxE]
+		preds = [1 if s >= thr else 0 for s in scores]
+		tp = sum((p == 1 and y == 1) for p, y in zip(preds, labels))
+		fp = sum((p == 1 and y == 0) for p, y in zip(preds, labels))
+		tn = sum((p == 0 and y == 0) for p, y in zip(preds, labels))
+		fn = sum((p == 0 and y == 1) for p, y in zip(preds, labels))
+		acc = (tp + tn) / max(1, (tp + tn + fp + fn))
+		tpr_v = tp / max(1, (tp + fn))
+		far_v = fp / max(1, (fp + tn))
+		trr_v = tn / max(1, (fp + tn))
+		frr_v = fn / max(1, (tp + fn))
+		return acc, tpr_v, far_v, trr_v, frr_v
 
 	def eval_network_bk(self, eval_list, eval_path):
 		self.eval()
