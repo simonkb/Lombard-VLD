@@ -33,7 +33,7 @@ parser.add_argument(
 	type=str,
 	default=['enhanced_lombard_grid_part1', 'enhanced_lombard_grid_part2'],
 )
-parser.add_argument('--val_path', type=str, default='emalg_val_pair_list_plainplain_vs_lombardlombard.txt')
+parser.add_argument('--val_path', type=str, default='emalg_val_file_list.txt')
 parser.add_argument('--generate_trials', action='store_true')
 parser.add_argument('--num_trials', type=int, default=5000)
 parser.add_argument('--seed', type=int, default=0)
