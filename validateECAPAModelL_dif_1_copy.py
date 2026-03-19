@@ -31,6 +31,7 @@ parser.add_argument('--val_path',
 					type=str, 
 					# default="file_list/mel/dif/data_3_1/apple/val_apple_pair_list_replay_1_2.txt",
 					default=r"C:\Users\Natnael\Downloads\file_list\file_list\mel\dif\data_3_1\apple\val_apple_pair_list_replay_1_2.txt")
+parser.add_argument('--save_roc_det', type=str, default='', help='Optional path to save ROC/DET points as CSV')
 
 ## Model and Loss settings
 # parser.add_argument('--C',       type=int,   default=1024,   help='Channel size for the speaker encoder')
@@ -67,7 +68,7 @@ if args.eval == True:
 		accuracy1 = s.eval_network_confusion_matrix(val_path=args.val_path)
 		print(accuracy1)
 	else:
-		acc, far, frr, eer, ieer, mindcf, thr, cm, cls, auc, _ = s.eval_network_metrics_5col(val_path=args.val_path)
+		acc, far, frr, eer, ieer, mindcf, thr, cm, cls, auc, roc = s.eval_network_metrics_5col(val_path=args.val_path)
 		print("Accuracy %.2f%%"%(acc * 100))
 		print("FAR %.2f%%"%(far * 100))
 		print("FRR %.2f%%"%(frr * 100))
@@ -79,4 +80,12 @@ if args.eval == True:
 		print("Live (pos) P/R/F1: %.3f / %.3f / %.3f"%(prec_pos, rec_pos, f1_pos))
 		print("Spoof (neg) P/R/F1: %.3f / %.3f / %.3f"%(prec_neg, rec_neg, f1_neg))
 		print("AUC %.4f"%(auc))
+		if args.save_roc_det:
+			fprs, fnrs, thresholds = roc
+			with open(args.save_roc_det, 'w') as fo:
+				fo.write("threshold,fpr,fnr,tpr\n")
+				for thr_i, fpr_i, fnr_i in zip(thresholds, fprs, fnrs):
+					tpr_i = 1.0 - fnr_i
+					fo.write(f"{thr_i},{fpr_i},{fnr_i},{tpr_i}\n")
+			print("Saved ROC/DET points to", args.save_roc_det)
 	quit()
