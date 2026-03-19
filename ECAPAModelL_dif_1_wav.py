@@ -176,6 +176,126 @@ class ECAPAModel(nn.Module):
 		return EER, minDCF
 
 
+	def eval_network_metrics_5col(self, val_path):
+		"""
+		Evaluate 5-column trials and return metrics:
+		Accuracy, FAR, FRR, EER, iEER, minDCF, threshold.
+
+		5-column format: label ref1 ref2 test1 test2
+		label=1: same type (live-live or spoof-spoof)
+		label=0: different type (live-spoof)
+		"""
+		self.eval()
+		files = []
+		embeddings = {}
+		with open(val_path, 'r') as fv:
+			lines = fv.readlines()
+		for line in lines:
+			parts = line.split()
+			if len(parts) < 5:
+				continue
+			files.append(parts[1] + '\t' + parts[2])
+			files.append(parts[3] + '\t' + parts[4])
+		setfiles = list(set(files))
+		setfiles.sort()
+
+		for idx, file in tqdm.tqdm(enumerate(setfiles), total=len(setfiles)):
+			ref_file, test_file = file.split('\t')
+			ref_wav, ref_sr = soundfile.read(ref_file)
+			test_wav, test_sr = soundfile.read(test_file)
+			assert ref_sr == 16000 and test_sr == 16000, 'should keep sr=16000'
+
+			ref_spec_1 = mel_spectrogram(torch.FloatTensor(ref_wav).unsqueeze(0), 
+			   						n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
+									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).to(self.device)
+			test_spec_1 = mel_spectrogram(torch.FloatTensor(test_wav).unsqueeze(0), 
+			   						n_fft=1024, num_mels=80, sampling_rate=test_sr, 
+									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).to(self.device)
+
+			if len(ref_wav) <= 2 * ref_sr:
+				len_left = int((2 * ref_sr - len(ref_wav)) // 2)
+				len_right = 2 * ref_sr - len(ref_wav) - len_left
+				ref_wav_2 = np.pad(ref_wav, ((len_left, len_right)), 'edge')
+			else:
+				ref_wav_2 = ref_wav
+			feats = []
+			startframe = numpy.linspace(0, ref_wav_2.shape[0] - 2 * ref_sr, num=5)
+			for asf in startframe:
+				sub_ref_wav = ref_wav_2[int(asf): int(asf) + 2 * ref_sr]
+				sub_ref_spec_2 = mel_spectrogram(torch.FloatTensor(sub_ref_wav).unsqueeze(0), 
+			   						n_fft=1024, num_mels=80, sampling_rate=ref_sr, 
+									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
+				feats.append(sub_ref_spec_2)
+			feats = numpy.stack(feats, axis = 0).astype(float)
+			ref_data_2 = torch.FloatTensor(feats).to(self.device)
+
+			if len(test_wav) <= 2 * test_sr:
+				len_left = int((2 * test_sr - len(test_wav)) // 2)
+				len_right = 2 * test_sr - len(test_wav) - len_left
+				test_wav_2 = np.pad(test_wav, ((len_left, len_right)), 'edge')
+			else:
+				test_wav_2 = test_wav
+			feats = []
+			startframe = numpy.linspace(0, test_wav_2.shape[0] - 2 * test_sr, num=5)
+			for asf in startframe:
+				sub_test_wav = test_wav_2[int(asf): int(asf) + 2 * test_sr]
+				sub_test_spec_2 = mel_spectrogram(torch.FloatTensor(sub_test_wav).unsqueeze(0), 
+			   						n_fft=1024, num_mels=80, sampling_rate=test_sr, 
+									hop_size=160, win_size=1024, fmin=0, fmax=8000, center=False).squeeze(0)
+				feats.append(sub_test_spec_2)
+			feats = numpy.stack(feats, axis = 0).astype(float)
+			test_data_2 = torch.FloatTensor(feats).to(self.device)
+
+			with torch.no_grad():
+				embedding_1 = self.speaker_encoder.forward(ref_spec_1.transpose(1, 2), test_spec_1.transpose(1, 2))
+				embedding_1 = embedding_1.squeeze(1)
+				embedding_1 = F.normalize(embedding_1, p=2, dim=1)
+				embedding_2 = self.speaker_encoder.forward(ref_data_2.transpose(1, 2), test_data_2.transpose(1, 2))
+				embedding_2 = embedding_2.squeeze(1)
+				embedding_2 = F.normalize(embedding_2, p=2, dim=1)
+			embeddings[file] = [embedding_1, embedding_2]
+
+		scores, labels  = [], []
+		for line in lines:
+			parts = line.split()
+			if len(parts) < 5:
+				continue
+			embedding_11, embedding_12 = embeddings[parts[1] + '\t' + parts[2]]
+			embedding_21, embedding_22 = embeddings[parts[3] + '\t' + parts[4]]
+			score_1 = torch.mean(torch.matmul(embedding_11, embedding_21.T))
+			score_2 = torch.mean(torch.matmul(embedding_12, embedding_22.T))
+			score = (score_1 + score_2) / 2
+			score = score.detach().cpu().numpy()
+			scores.append(score)
+			labels.append(int(parts[0]))
+
+		# EER and minDCF
+		EER = tuneThresholdfromScore(scores, labels, [1, 0.1])[1]
+		fnrs, fprs, thresholds = ComputeErrorRates(scores, labels)
+		minDCF, _ = ComputeMinDcf(fnrs, fprs, thresholds, 0.05, 1, 1)
+
+		# Choose threshold at min |FNR - FPR|
+		diffs = [abs(fnr - fpr) for fnr, fpr in zip(fnrs, fprs)]
+		best_idx = int(numpy.argmin(diffs)) if diffs else 0
+		thr = thresholds[best_idx] if thresholds else 0.0
+
+		# Accuracy, FAR, FRR at this threshold
+		preds = [1 if s >= thr else 0 for s in scores]
+		total = len(labels)
+		correct = sum(1 for p, y in zip(preds, labels) if p == y)
+		acc = correct / total if total else 0.0
+
+		num_neg = sum(1 for y in labels if y == 0)
+		num_pos = sum(1 for y in labels if y == 1)
+		false_accept = sum(1 for p, y in zip(preds, labels) if y == 0 and p == 1)
+		false_reject = sum(1 for p, y in zip(preds, labels) if y == 1 and p == 0)
+		far = false_accept / num_neg if num_neg else 0.0
+		frr = false_reject / num_pos if num_pos else 0.0
+		ieer = 1.0 - (EER / 100.0)
+
+		return acc, far, frr, EER, ieer, minDCF, thr
+
+
 	def eval_network_confusion_matrix(self, val_path):
 		self.eval()
 		with open(val_path, 'r') as fv:

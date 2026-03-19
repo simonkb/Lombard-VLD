@@ -61,6 +61,16 @@ if args.eval == True:
 
 	print("EER %2.2f%%, minDCF %.4f%%"%(EER, minDCF))
 	
-	# accuracy1 = s.eval_network_confusion_matrix(val_path=args.val_path)
-	# print(accuracy1)
+	with open(args.val_path, 'r') as f:
+		first = f.readline().rstrip('\n')
+	if first.count('\t') >= 2:
+		accuracy1 = s.eval_network_confusion_matrix(val_path=args.val_path)
+		print(accuracy1)
+	else:
+		acc, far, frr, eer, ieer, mindcf, thr = s.eval_network_metrics_5col(val_path=args.val_path)
+		print("Accuracy %.2f%%"%(acc * 100))
+		print("FAR %.2f%%"%(far * 100))
+		print("FRR %.2f%%"%(frr * 100))
+		print("iEER %.2f%%"%(ieer * 100))
+		print("Threshold %.6f"%(thr))
 	quit()
