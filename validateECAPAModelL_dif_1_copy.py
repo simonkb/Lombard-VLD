@@ -67,10 +67,16 @@ if args.eval == True:
 		accuracy1 = s.eval_network_confusion_matrix(val_path=args.val_path)
 		print(accuracy1)
 	else:
-		acc, far, frr, eer, ieer, mindcf, thr = s.eval_network_metrics_5col(val_path=args.val_path)
+		acc, far, frr, eer, ieer, mindcf, thr, cm, cls, auc, _ = s.eval_network_metrics_5col(val_path=args.val_path)
 		print("Accuracy %.2f%%"%(acc * 100))
 		print("FAR %.2f%%"%(far * 100))
 		print("FRR %.2f%%"%(frr * 100))
 		print("iEER %.2f%%"%(ieer * 100))
 		print("Threshold %.6f"%(thr))
+		tp, tn, fp, fn = cm
+		prec_pos, rec_pos, f1_pos, prec_neg, rec_neg, f1_neg = cls
+		print("Confusion [TP TN FP FN]:", (tp, tn, fp, fn))
+		print("Live (pos) P/R/F1: %.3f / %.3f / %.3f"%(prec_pos, rec_pos, f1_pos))
+		print("Spoof (neg) P/R/F1: %.3f / %.3f / %.3f"%(prec_neg, rec_neg, f1_neg))
+		print("AUC %.4f"%(auc))
 	quit()

@@ -293,7 +293,31 @@ class ECAPAModel(nn.Module):
 		frr = false_reject / num_pos if num_pos else 0.0
 		ieer = 1.0 - (EER / 100.0)
 
-		return acc, far, frr, EER, ieer, minDCF, thr
+		# Confusion matrix
+		tp = sum(1 for p, y in zip(preds, labels) if y == 1 and p == 1)
+		tn = sum(1 for p, y in zip(preds, labels) if y == 0 and p == 0)
+		fp = sum(1 for p, y in zip(preds, labels) if y == 0 and p == 1)
+		fn = sum(1 for p, y in zip(preds, labels) if y == 1 and p == 0)
+
+		# Class-wise precision/recall/F1
+		prec_pos = tp / (tp + fp) if (tp + fp) else 0.0
+		rec_pos = tp / (tp + fn) if (tp + fn) else 0.0
+		f1_pos = (2 * prec_pos * rec_pos) / (prec_pos + rec_pos) if (prec_pos + rec_pos) else 0.0
+
+		prec_neg = tn / (tn + fn) if (tn + fn) else 0.0
+		rec_neg = tn / (tn + fp) if (tn + fp) else 0.0
+		f1_neg = (2 * prec_neg * rec_neg) / (prec_neg + rec_neg) if (prec_neg + rec_neg) else 0.0
+
+		# AUC (ROC) from FPR/TPR
+		tprs = [1.0 - fnr for fnr in fnrs]
+		pairs = sorted(zip(fprs, tprs))
+		auc = 0.0
+		if len(pairs) >= 2:
+			xs = [p[0] for p in pairs]
+			ys = [p[1] for p in pairs]
+			auc = float(numpy.trapz(ys, xs))
+
+		return acc, far, frr, EER, ieer, minDCF, thr, (tp, tn, fp, fn), (prec_pos, rec_pos, f1_pos, prec_neg, rec_neg, f1_neg), auc, (fprs, fnrs, thresholds)
 
 
 	def eval_network_confusion_matrix(self, val_path):
