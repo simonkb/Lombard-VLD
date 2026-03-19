@@ -1,0 +1,53 @@
+DB_MLC
+
+Speakers: 28
+Train speakers: 22
+Val speakers: 6
+Train pairs: pos 2190 neg 2190
+Val trials: pos 110 neg 110
+Train list: C:\Users\Natnael\Downloads\dbmlc_lists\dbmlc_train_pairs.txt
+Val trials: C:\Users\Natnael\Downloads\dbmlc_lists\dbmlc_val_trials.txt
+Sanity report
+Train pairs: live 2190 spoof 2190
+Val trials: live-live 110 live-spoof 110
+Train samples
+1       F09:SSN30:G01_U01       F09:SSN80:G01_U01
+1       F09:SSN30:G01_U02       F09:SSN80:G01_U02
+1       F09:SSN30:G01_U03       F09:SSN80:G01_U03
+1       F09:SSN30:G01_U04       F09:SSN80:G01_U04
+1       F09:SSN30:G01_U05       F09:SSN80:G01_U05
+Val samples
+1       M20:SSN30:G10_U05       M20:SSN80:G10_U05       F22:SSN30:G04_U01       F22:SSN80:G04_U01
+1       M23:SSN30:G03_U04       M23:SSN80:G03_U04       F22:SSN30:G10_U08       F22:SSN80:G10_U08
+1       F22:SSN30:G09_U09       F22:SSN80:G09_U09       M20:SSN30:G07_U07       M20:SSN80:G07_U07
+1       M23:SSN30:G02_U07       M23:SSN80:G02_U07       F05:SSN30:G05_U03       F05:SSN80:G05_U03
+1       F18:SSN30:G10_U08       F18:SSN80:G10_U08       F23:SSN30:G06_U07       F23:SSN80:G06_U07
+
+
+
+-------------------------------------------------------------------------------
+DB_ELC
+
+Speakers: 54
+Train speakers: 43
+Val speakers: 11
+Missing audio files skipped: 1
+Train pairs: pos 2078 neg 2078
+Val trials: pos 110 neg 110
+Train list: C:\Users\Natnael\Downloads\dbelc_lists\dbelc_train_pairs.txt
+Val trials: C:\Users\Natnael\Downloads\dbelc_lists\dbelc_val_trials.txt
+Sanity report
+Train pairs: live 2078 spoof 2078
+Val trials: live-live 110 live-spoof 110
+Train samples
+1       s39:p:brbl8s    s39:l:brbl8s
+1       s39:p:pwak3n    s39:l:pwak3n
+1       s39:p:brwv9p    s39:l:brwv9p
+1       s39:p:lrbu3a    s39:l:lrbu3a
+1       s39:p:bbab8s    s39:l:bbab8s
+Val samples
+1       s8:p:sgwf5p     s8:l:sgwf5p     s18:p:swik4p    s18:l:swik4p
+1       s47:p:lwwo3p    s47:l:lwwo3p    s24:p:swbe5n    s24:l:swbe5n
+1       s18:p:bram8s    s18:l:bram8s    s31:p:pbbr3s    s31:l:pbbr3s
+1       s54:p:prwq6p    s54:l:prwq6p    s24:p:pwbm6a    s24:l:pwbm6a
+1       s8:p:pbwk7n     s8:l:pbwk7n     s45:p:lbbl5p    s45:l:lbbl5p
