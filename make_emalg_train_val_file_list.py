@@ -66,6 +66,15 @@ def _write_trials(
 	if len(keys) < 2:
 		raise ValueError('Need at least 2 utterances with both SSN40 and SSN80 to form trials')
 
+	def _pick_other_key(spk_a, utt_a):
+		# Prefer a different speaker if possible; otherwise just ensure different (spk, utt).
+		keys_other_spk = [(s, u) for (s, u) in keys if s != spk_a]
+		pool = keys_other_spk if keys_other_spk else keys
+		spk_b, utt_b = rng.choice(pool)
+		while (spk_b, utt_b) == (spk_a, utt_a):
+			spk_b, utt_b = rng.choice(pool)
+		return spk_b, utt_b
+
 	def _pair_40_80(spk, utt):
 		plain = _sample_one(rng, by_spk[spk][utt]['SSN40'])
 		lomb = _sample_one(rng, by_spk[spk][utt]['SSN80'])
@@ -83,7 +92,9 @@ def _write_trials(
 				b1, b2 = _pair_40_80(spk_b, utt_b)
 				fo.write(f'1\t{a1}\t{a2}\t{b1}\t{b2}\n')
 			else:
-				fo.write(f'0\t{a1}\t{a2}\t{a1}\t{a1}\n')
+				spk_b, utt_b = _pick_other_key(spk_a, utt_a)
+				b_plain = _sample_one(rng, by_spk[spk_b][utt_b]['SSN40'])
+				fo.write(f'0\t{a1}\t{a2}\t{b_plain}\t{b_plain}\n')
 
 
 def generate_emalg_val_pair_list(
@@ -204,18 +215,7 @@ if __name__ == '__main__':
 	parser.add_argument('--val_out', type=str, default='emalg_val_file_list.txt')
 	parser.add_argument('--val_ratio', type=float, default=0.2)
 	parser.add_argument('--trials_per_utt', type=int, default=1)
-	parser.add_argument(
-		'--out',
-		type=str,
-		default='emalg_val_pair_list_plainplain_vs_lombardlombard.txt',
-	)
-	parser.add_argument('--num_trials', type=int, default=5000)
 	parser.add_argument('--seed', type=int, default=0)
-	parser.add_argument(
-		'--within_speaker',
-		action='store_true',
-		help='If set, sample both pairs from the same speaker to reduce speaker leakage.',
-	)
 
 	args = parser.parse_args()
 	generate_emalg_train_val_lists(
@@ -226,13 +226,5 @@ if __name__ == '__main__':
 		val_ratio=args.val_ratio,
 		trials_per_utt=args.trials_per_utt,
 	)
-	generate_emalg_val_pair_list(
-		roots=args.roots,
-		out_path=args.out,
-		num_trials=args.num_trials,
-		seed=args.seed,
-		within_speaker=args.within_speaker,
-	)
 	print(args.train_out)
 	print(args.val_out)
-	print(args.out)
