@@ -1,1 +1,1 @@
-
+python make_emalg_train_val_file_list.py --seed 0 --val_ratio 0.2 --trials_per_utt 10
