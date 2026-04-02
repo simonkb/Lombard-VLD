@@ -7,6 +7,26 @@ import numpy as np
 import soundfile as sf
 from preprocess.melspec.compute_mel import mel_spectrogram
 
+def _to_mono(wav: np.ndarray) -> np.ndarray:
+	if wav.ndim == 1:
+		return wav
+	# Average channels
+	return np.mean(wav, axis=1)
+
+def _resample_np(wav: np.ndarray, orig_sr: int, target_sr: int = 16000) -> np.ndarray:
+	if orig_sr == target_sr:
+		return wav
+	if orig_sr <= 0:
+		raise ValueError(f'Invalid sample rate: {orig_sr}')
+	# Linear interpolation resampler (dependency-free).
+	ratio = float(target_sr) / float(orig_sr)
+	new_len = int(round(len(wav) * ratio))
+	if new_len <= 1:
+		return np.zeros((target_sr,), dtype=wav.dtype)
+	old_x = np.linspace(0.0, 1.0, num=len(wav), endpoint=False)
+	new_x = np.linspace(0.0, 1.0, num=new_len, endpoint=False)
+	return np.interp(new_x, old_x, wav).astype(wav.dtype, copy=False)
+
 class train_loader(object):
 	def __init__(self, train_path, **kwargs):
 		self.trn_file = train_path
@@ -26,7 +46,15 @@ class train_loader(object):
 		ref_wav, ref_sr = sf.read(self.trn_ref_file_list[index])
 		test_wav, test_sr = sf.read(self.trn_test_file_list[index])
 
-		assert ref_sr == 16000 and test_sr == 16000, 'should keep wav sr=16000'
+		ref_wav = _to_mono(ref_wav)
+		test_wav = _to_mono(test_wav)
+
+		if ref_sr != 16000:
+			ref_wav = _resample_np(ref_wav, ref_sr, 16000)
+			ref_sr = 16000
+		if test_sr != 16000:
+			test_wav = _resample_np(test_wav, test_sr, 16000)
+			test_sr = 16000
 
 		# fixed length: 2s
 		if len(ref_wav) <= 2 * ref_sr:

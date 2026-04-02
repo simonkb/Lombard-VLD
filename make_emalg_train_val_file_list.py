@@ -97,6 +97,42 @@ def _write_trials(
 				fo.write(f'0\t{a1}\t{a2}\t{b_plain}\t{b_plain}\n')
 
 
+def _write_train_pairs_3col(
+	rng: random.Random,
+	by_spk,
+	keys,
+	out_path: str,
+	num_pairs: int,
+) -> None:
+	"""Write a 3-column training list compatible with dataLoaderL_dif_wav.train_loader.
+
+	Format per line: label<TAB>ref_wav<TAB>test_wav
+	- label 1: (SSN40 plain, SSN80 lombard) from same utterance key
+	- label 0: (SSN40 plain, SSN40 plain) from same utterance key (plain/plain)
+	"""
+	if len(keys) < 1:
+		raise ValueError('Need at least 1 utterance with both SSN40 and SSN80 to form training pairs')
+
+	def _pair_40_80(spk, utt):
+		plain = _sample_one(rng, by_spk[spk][utt]['SSN40'])
+		lomb = _sample_one(rng, by_spk[spk][utt]['SSN80'])
+		return plain, lomb
+
+	positives = []
+	negatives = []
+	for _ in range(num_pairs):
+		spk, utt = rng.choice(keys)
+		plain, lomb = _pair_40_80(spk, utt)
+		positives.append((plain, lomb))
+		negatives.append((plain, plain))
+
+	with open(out_path, 'w') as fo:
+		for ref, test in positives:
+			fo.write(f'1\t{ref}\t{test}\n')
+		for ref, test in negatives:
+			fo.write(f'0\t{ref}\t{test}\n')
+
+
 def generate_emalg_val_pair_list(
 	roots,
 	out_path: str,
@@ -187,12 +223,12 @@ def generate_emalg_train_val_lists(
 	val_keys = keys[:n_val]
 	train_keys = keys[n_val:]
 
-	_write_trials(
+	_write_train_pairs_3col(
 		rng=rng,
 		by_spk=by_spk,
 		keys=train_keys,
 		out_path=train_out,
-		num_trials=len(train_keys) * max(1, trials_per_utt),
+		num_pairs=len(train_keys) * max(1, trials_per_utt),
 	)
 	_write_trials(
 		rng=rng,
