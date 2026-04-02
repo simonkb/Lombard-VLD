@@ -64,10 +64,7 @@ if args.eval == True:
 	
 	with open(args.val_path, 'r') as f:
 		first = f.readline().rstrip('\n')
-	if first.count('\t') >= 2:
-		accuracy1 = s.eval_network_confusion_matrix(val_path=args.val_path)
-		print(accuracy1)
-	else:
+	if len(first.split()) == 5:
 		acc, far, frr, eer, ieer, mindcf, thr, cm, cls, auc, roc = s.eval_network_metrics_5col(val_path=args.val_path)
 		print("Accuracy %.2f%%"%(acc * 100))
 		print("FAR %.2f%%"%(far * 100))
@@ -88,4 +85,7 @@ if args.eval == True:
 					tpr_i = 1.0 - fnr_i
 					fo.write(f"{thr_i},{fpr_i},{fnr_i},{tpr_i}\n")
 			print("Saved ROC/DET points to", args.save_roc_det)
+	else:
+		accuracy1 = s.eval_network_confusion_matrix(val_path=args.val_path)
+		print(accuracy1)
 	quit()
